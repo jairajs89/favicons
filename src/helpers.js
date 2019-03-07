@@ -8,7 +8,6 @@ const colors = require("colors");
 const jsonxml = require("jsontoxml");
 const sizeOf = require("image-size");
 const Jimp = require("jimp");
-const svg2png = require("svg2png");
 const PLATFORM_OPTIONS = require("./config/platform-options.json");
 
 module.exports = function(options) {
@@ -238,49 +237,40 @@ module.exports = function(options) {
 
         const width = properties.width - offset * 2;
         const height = properties.height - offset * 2;
-        const svgSource = sourceset.find(source => source.size.type === "svg");
+        const sideSize = Math.max(width, height);
 
-        let promise = null;
+        let nearestIcon = sourceset[0];
+        let nearestSideSize = Math.max(
+          nearestIcon.size.width,
+          nearestIcon.size.height
+        );
 
-        if (svgSource) {
-          log("Image:render", `Rendering SVG to ${width}x${height}`);
-          promise = svg2png(svgSource.file, { height, width }).then(Jimp.read);
-        } else {
-          const sideSize = Math.max(width, height);
+        for (const icon of sourceset) {
+          const max = Math.max(icon.size.width, icon.size.height);
 
-          let nearestIcon = sourceset[0];
-          let nearestSideSize = Math.max(
-            nearestIcon.size.width,
-            nearestIcon.size.height
-          );
-
-          for (const icon of sourceset) {
-            const max = Math.max(icon.size.width, icon.size.height);
-
-            if (
-              (nearestSideSize > max || nearestSideSize < sideSize) &&
-              max >= sideSize
-            ) {
-              nearestIcon = icon;
-              nearestSideSize = max;
-            }
+          if (
+            (nearestSideSize > max || nearestSideSize < sideSize) &&
+            max >= sideSize
+          ) {
+            nearestIcon = icon;
+            nearestSideSize = max;
           }
-
-          log("Images:render", `Resizing PNG to ${width}x${height}`);
-
-          promise = Jimp.read(nearestIcon.file).then(image =>
-            image.contain(
-              width,
-              height,
-              Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE,
-              options.pixel_art &&
-                width >= image.bitmap.width &&
-                height >= image.bitmap.height
-                ? Jimp.RESIZE_NEAREST_NEIGHBOR
-                : null
-            )
-          );
         }
+
+        log("Images:render", `Resizing PNG to ${width}x${height}`);
+
+        const promise = Jimp.read(nearestIcon.file).then(image =>
+          image.contain(
+            width,
+            height,
+            Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE,
+            options.pixel_art &&
+              width >= image.bitmap.width &&
+              height >= image.bitmap.height
+              ? Jimp.RESIZE_NEAREST_NEIGHBOR
+              : null
+          )
+        );
 
         return promise.then(image => image);
       },
